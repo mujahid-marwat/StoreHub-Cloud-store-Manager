@@ -1,13 +1,14 @@
 import streamlit as st
 import csv
+import os
 from datetime import datetime
 from pathlib import Path
 import pandas as pd
 
 # Page configuration
 st.set_page_config(
-    page_title="StoreHub - Cloud Store Manager",
-    page_icon="🏬",
+    page_title="Store Management System",
+    page_icon="🏪",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -249,21 +250,26 @@ def get_manager():
 
 manager = get_manager()
 
+# Initialize session state
 if 'authenticated' not in st.session_state:
     st.session_state.authenticated = False
     st.session_state.username = ""
     st.session_state.cart = []
 
+# ==================== LOGIN PAGE ====================
 if not st.session_state.authenticated:
-    st.markdown("# 🏬 StoreHub")
-    st.markdown("## Cloud Store Management for everyone")
+    st.markdown("# 🏪 General Store Management System")
+    
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
         st.markdown("### User Authentication")
+        
         tab1, tab2 = st.tabs(["Login", "Signup"])
+        
         with tab1:
             username = st.text_input("Username", key="login_user")
             password = st.text_input("Password", type="password", key="login_pass")
+            
             if st.button("🔐 Login", use_container_width=True):
                 if manager.login(username, password):
                     st.session_state.authenticated = True
@@ -272,18 +278,23 @@ if not st.session_state.authenticated:
                     st.rerun()
                 else:
                     st.error("❌ Invalid username or password")
+        
         with tab2:
             new_user = st.text_input("Create Username", key="signup_user")
             new_pass = st.text_input("Create Password", type="password", key="signup_pass")
+            
             if st.button("✍️ Sign Up", use_container_width=True):
                 if manager.signup(new_user, new_pass):
                     st.success("✅ Account created! Please login.")
                 else:
                     st.error("❌ Username exists or fields are empty")
+
+# ==================== MAIN DASHBOARD ====================
 else:
+    # Top bar
     col1, col2 = st.columns([0.8, 0.2])
     with col1:
-        st.markdown("# 🏬 StoreHub")
+        st.markdown(f"# 🏪 General Store Management System")
         st.markdown(f"👤 **Logged in as:** {st.session_state.username}")
     with col2:
         if st.button("🚪 Logout"):
@@ -291,19 +302,30 @@ else:
             st.session_state.username = ""
             st.session_state.cart = []
             st.rerun()
+    
     st.divider()
-    tab1, tab2, tab3, tab4 = st.tabs(["📦 Inventory", "🛒 Sales", "💰 Profit", "📊 Reports"])
+    
+    # Main tabs
+    tab1, tab2, tab3, tab4, tab5 = st.tabs(["📦 Inventory", "🛒 Sales", "💰 Profit", "📊 Reports", "📄 Receipts"])
+    
+    # ==================== INVENTORY TAB ====================
     with tab1:
         st.markdown("### Inventory Management")
+        
         col1, col2, col3 = st.columns(3)
+        
         with col1:
             if st.button("➕ Add New Item", use_container_width=True):
                 st.session_state.show_add = True
+        
         with col2:
             search_query = st.text_input("🔍 Search item by name", "")
+        
         with col3:
             if st.button("🔄 Refresh", use_container_width=True):
                 st.rerun()
+        
+        # Add item form
         if st.session_state.get("show_add", False):
             st.warning("### Add New Item")
             with st.form("add_item_form"):
@@ -314,6 +336,7 @@ else:
                 with col2:
                     sell_price = st.number_input("Sell Price", min_value=0.0, step=0.01)
                 quantity = st.number_input("Quantity", min_value=1, step=1)
+                
                 if st.form_submit_button("✅ Add Item"):
                     if manager.addItem(item_name, buy_price, sell_price, quantity):
                         st.success("✅ Item added successfully!")
@@ -321,11 +344,16 @@ else:
                         st.rerun()
                     else:
                         st.error("❌ Failed to add item")
+        
         st.divider()
+        
+        # Display inventory
         items = manager.getItems()
         if search_query:
             items = manager.searchItems(search_query)
+        
         if items:
+            # Create DataFrame
             df_data = []
             for item in items:
                 df_data.append({
@@ -336,23 +364,29 @@ else:
                     "Quantity": item.quantity,
                     "Profit/Unit": f"{(item.sellPrice - item.buyPrice):.2f} PKR"
                 })
+            
             df = pd.DataFrame(df_data)
             st.dataframe(df, use_container_width=True, hide_index=True)
+            
             st.divider()
             st.markdown("### Update or Delete Item")
+            
             col1, col2 = st.columns(2)
+            
             with col1:
                 st.markdown("#### Update Item")
                 item_id = st.number_input("Item ID to update", min_value=1)
                 new_buy_price = st.number_input("New Buy Price", min_value=0.0, step=0.01, key="update_buy")
                 new_sell_price = st.number_input("New Sell Price", min_value=0.0, step=0.01, key="update_sell")
                 add_qty = st.number_input("Add Quantity", min_value=0, step=1, key="update_qty")
+                
                 if st.button("💾 Update Item", use_container_width=True):
                     if manager.updateItem(item_id, new_buy_price, new_sell_price, add_qty):
                         st.success("✅ Item updated!")
                         st.rerun()
                     else:
                         st.error("❌ Item not found")
+            
             with col2:
                 st.markdown("#### Delete Item")
                 delete_id = st.number_input("Item ID to delete", min_value=1, key="delete_id")
@@ -364,19 +398,27 @@ else:
                         st.error("❌ Item not found")
         else:
             st.info("📭 No items in inventory. Add your first item!")
+    
+    # ==================== SALES TAB ====================
     with tab2:
         st.markdown("### Point of Sale")
+        
         items = manager.getItems()
+        
         if items:
             col1, col2, col3 = st.columns(3)
+            
             with col1:
                 item_options = {f"{item.name} ({item.sellPrice:.2f} PKR)": item.id for item in items}
                 selected_item = st.selectbox("Select Item", list(item_options.keys()))
                 item_id = item_options[selected_item]
+            
             with col2:
                 qty = st.number_input("Quantity", min_value=1, step=1, value=1, key="sale_qty")
+            
             with col3:
                 discount = st.number_input("Discount %", min_value=0, max_value=100, step=1, key="discount")
+            
             if st.button("🛒 Add to Cart", use_container_width=True):
                 item = next((i for i in items if i.id == item_id), None)
                 if item and qty <= item.quantity:
@@ -391,16 +433,22 @@ else:
                     st.rerun()
                 else:
                     st.error("❌ Insufficient stock!")
+            
             st.divider()
+            
+            # Shopping Cart
             if st.session_state.cart:
                 st.markdown("### 🛒 Shopping Cart")
+                
                 cart_data = []
                 total_bill = 0
-                for cart_item in st.session_state.cart:
+                
+                for idx, cart_item in enumerate(st.session_state.cart):
                     line_total = cart_item['price'] * cart_item['qty']
                     discount_amount = line_total * (cart_item['discount'] / 100)
                     line_total -= discount_amount
                     total_bill += line_total
+                    
                     cart_data.append({
                         "Item": cart_item['name'],
                         "Qty": cart_item['qty'],
@@ -408,10 +456,14 @@ else:
                         "Discount": f"{cart_item['discount']}%",
                         "Total": f"{line_total:.2f} PKR"
                     })
+                
                 df_cart = pd.DataFrame(cart_data)
                 st.dataframe(df_cart, use_container_width=True, hide_index=True)
+                
                 st.markdown(f"### **Total Bill: {total_bill:.2f} PKR**")
+                
                 col1, col2, col3 = st.columns(3)
+                
                 with col1:
                     if st.button("✅ Complete Sale", use_container_width=True):
                         # Generate receipt ID
@@ -522,52 +574,92 @@ else:
                             st.rerun()
                         else:
                             st.error("❌ Sale failed!")
+                
                 with col2:
                     if st.button("🗑️ Clear Cart", use_container_width=True):
                         st.session_state.cart = []
                         st.rerun()
+                
+                with col3:
+                    st.write("")
             else:
-                st.info("🛒 Your cart is empty. Add items to the sale first!")
+                st.info("🛒 Your cart is empty. Add items to get started!")
         else:
-            st.warning("❌ No items available for sale. Add inventory first.")
+            st.warning("❌ No items available for sale. Add items to inventory first.")
+    
+    # ==================== PROFIT TAB ====================
     with tab3:
         st.markdown("### 💰 Profit Summary")
+        
         col1, col2, col3 = st.columns(3)
+        
         with col1:
-            st.metric(label="Daily Profit", value=f"{manager.getDailyProfit():.2f} PKR")
+            st.metric(
+                label="Daily Profit",
+                value=f"{manager.getDailyProfit():.2f} PKR",
+                delta=None,
+            )
+        
         with col2:
-            st.metric(label="Monthly Profit", value=f"{manager.getMonthlyProfit():.2f} PKR")
+            st.metric(
+                label="Monthly Profit",
+                value=f"{manager.getMonthlyProfit():.2f} PKR",
+                delta=None,
+            )
+        
         with col3:
-            st.metric(label="Yearly Profit", value=f"{manager.getYearlyProfit():.2f} PKR")
+            st.metric(
+                label="Yearly Profit",
+                value=f"{manager.getYearlyProfit():.2f} PKR",
+                delta=None,
+            )
+        
         st.divider()
+        
+        st.markdown("### Profit Breakdown")
         profit_data = {
             "Period": ["Today", "This Month", "This Year"],
-            "Profit": [manager.getDailyProfit(), manager.getMonthlyProfit(), manager.getYearlyProfit()]
+            "Profit": [
+                manager.getDailyProfit(),
+                manager.getMonthlyProfit(),
+                manager.getYearlyProfit()
+            ]
         }
         df_profit = pd.DataFrame(profit_data)
+        
         col1, col2 = st.columns(2)
         with col1:
             st.bar_chart(df_profit.set_index("Period"))
         with col2:
             st.dataframe(df_profit, use_container_width=True, hide_index=True)
+    
+    # ==================== REPORTS TAB ====================
     with tab4:
         st.markdown("### 📊 Reports & Analytics")
+        
         col1, col2 = st.columns(2)
+        
         with col1:
             st.markdown("#### Inventory Value")
             total_inv_value = sum(item.quantity * item.buyPrice for item in manager.getItems())
             total_inv_sell = sum(item.quantity * item.sellPrice for item in manager.getItems())
+            
             st.metric("Total Inventory Cost", f"{total_inv_value:.2f} PKR")
             st.metric("Total Inventory Value", f"{total_inv_sell:.2f} PKR")
+        
         with col2:
             st.markdown("#### Stock Overview")
             total_items = len(manager.getItems())
             total_qty = sum(item.quantity for item in manager.getItems())
+            
             st.metric("Total Products", total_items)
             st.metric("Total Items in Stock", total_qty)
+        
         st.divider()
+        
         st.markdown("#### Low Stock Alert")
         low_stock_items = [item for item in manager.getItems() if item.quantity < 5]
+        
         if low_stock_items:
             low_stock_data = []
             for item in low_stock_items:
@@ -577,10 +669,41 @@ else:
                     "Quantity": item.quantity,
                     "Status": "🔴 Critical" if item.quantity < 2 else "🟠 Low"
                 })
+            
             df_low = pd.DataFrame(low_stock_data)
             st.dataframe(df_low, use_container_width=True, hide_index=True)
         else:
             st.success("✅ All items have sufficient stock!")
-    st.divider()
-    st.markdown("---")
-    st.markdown("<p style='text-align: center; color: gray; font-size: 12px;'>StoreHub | Cloud Store Manager</p>", unsafe_allow_html=True)
+    
+    # ==================== RECEIPTS TAB ====================
+    with tab5:
+        st.markdown("### 📄 Receipts Management")
+        
+        # Read receipts from CSV
+        receipts_file = Path("manager_receipts.csv")
+        if receipts_file.exists():
+            with open(receipts_file, 'r') as f:
+                receipts_content = f.read()
+            
+            if receipts_content.strip():
+                st.markdown("#### All Receipts")
+                st.text_area("Receipts History", receipts_content, height=400, key="receipts_area")
+                
+                # Option to download
+                st.download_button(
+                    label="📥 Download Receipts",
+                    data=receipts_content,
+                    file_name="manager_receipts.txt",
+                    mime="text/plain",
+                    key="download_receipts"
+                )
+                
+                st.info("💡 To print a specific receipt, copy it from the text area above and paste into a document or use browser print (Ctrl+P).")
+            else:
+                st.info("📭 No receipts found.")
+        else:
+            st.warning("❌ Receipts file not found.")
+
+st.divider()
+st.markdown("---")
+st.markdown("<p style='text-align: center; color: gray; font-size: 12px;'>General Store Management System v1.0 | Data saved automatically</p>", unsafe_allow_html=True)
