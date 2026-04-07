@@ -1,0 +1,3 @@
+PyQt5==5.15.9
+streamlit==1.28.1
+pandas==2.1.1
