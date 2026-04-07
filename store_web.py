@@ -562,14 +562,14 @@ else:
                             
                             st.markdown(html_receipt, unsafe_allow_html=True)
                             
-                            # Auto-print the receipt
-                            st.markdown("""
-                            <script>
-                            setTimeout(function() {
+                            # Print button for receipt
+                            if st.button("🖨️ Print Receipt", key="print_receipt"):
+                                st.markdown("""
+                                <script>
                                 window.print();
-                            }, 1000); // Wait 1 second for rendering
-                            </script>
-                            """, unsafe_allow_html=True)
+                                </script>
+                                """, unsafe_allow_html=True)
+                                st.success("Print dialog opened!")
                             
                             st.rerun()
                         else:
